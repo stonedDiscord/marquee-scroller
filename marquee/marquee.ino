@@ -27,7 +27,7 @@
 
 #include "Settings.h"
 
-#define VERSION "2.16"
+#define VERSION "3.03"
 
 #define HOSTNAME "CLOCK-"
 #define CONFIG "/conf.txt"
@@ -90,9 +90,6 @@ int printerCount = 0;
 // Pi-hole Client
 PiHoleClient piholeClient;
 
-// Bitcoin Client
-BitcoinApiClient bitcoinClient;
-
 ESP8266WebServer server(WEBSERVER_PORT);
 ESP8266HTTPUpdateServer serverUpdater;
 
@@ -101,14 +98,12 @@ static const char WEB_ACTIONS1[] PROGMEM = "<a class='w3-bar-item w3-button' hre
                         "<a class='w3-bar-item w3-button' href='/configurenews'><i class='far fa-newspaper'></i> News</a>"
                         "<a class='w3-bar-item w3-button' href='/configureoctoprint'><i class='fas fa-cube'></i> OctoPrint</a>";
 
-static const char WEB_ACTIONS2[] PROGMEM = "<a class='w3-bar-item w3-button' href='/configurebitcoin'><i class='fab fa-bitcoin'></i> Bitcoin</a>"
-                        "<a class='w3-bar-item w3-button' href='/configurepihole'><i class='fas fa-network-wired'></i> Pi-hole</a>"
+static const char WEB_ACTIONS2[] PROGMEM = "<a class='w3-bar-item w3-button' href='/configurepihole'><i class='fas fa-network-wired'></i> Pi-hole</a>"
                         "<a class='w3-bar-item w3-button' href='/pull'><i class='fas fa-cloud-download-alt'></i> Refresh Data</a>"
                         "<a class='w3-bar-item w3-button' href='/display'>";
 
 static const char WEB_ACTION3[] PROGMEM = "</a><a class='w3-bar-item w3-button' href='/systemreset' onclick='return confirm(\"Do you want to reset to default weather settings?\")'><i class='fas fa-undo'></i> Reset Settings</a>"
                        "<a class='w3-bar-item w3-button' href='/forgetwifi' onclick='return confirm(\"Do you want to forget to WiFi connection?\")'><i class='fas fa-wifi'></i> Forget WiFi</a>"
-                       "<a class='w3-bar-item w3-button' href='/restart'><i class='fas fa-sync'></i> Restart</a>"
                        "<a class='w3-bar-item w3-button' href='/update'><i class='fas fa-wrench'></i> Firmware Update</a>"
                        "<a class='w3-bar-item w3-button' href='https://github.com/Qrome/marquee-scroller' target='_blank'><i class='fas fa-question-circle'></i> About</a>";
 
@@ -122,7 +117,7 @@ static const char CHANGE_FORM1[] PROGMEM = "<form class='w3-container' action='/
                       "<p><input name='metric' class='w3-check w3-margin-top' type='checkbox' %CHECKED%> Use Metric (Celsius)</p>"
                       "<p><input name='showdate' class='w3-check w3-margin-top' type='checkbox' %DATE_CHECKED%> Display Date</p>"
                       "<p><input name='showcity' class='w3-check w3-margin-top' type='checkbox' %CITY_CHECKED%> Display City Name</p>"
-                      "<p><input name='showhighlow' class='w3-check w3-margin-top' type='checkbox' %HIGHLOW_CHECKED%> Display Daily High/Low Temperatures</p>"
+                      "<p><input name='showhighlow' class='w3-check w3-margin-top' type='checkbox' %HIGHLOW_CHECKED%> Display Current High/Low Temperatures</p>"
                       "<p><input name='showcondition' class='w3-check w3-margin-top' type='checkbox' %CONDITION_CHECKED%> Display Weather Condition</p>"
                       "<p><input name='showhumidity' class='w3-check w3-margin-top' type='checkbox' %HUMIDITY_CHECKED%> Display Humidity</p>"
                       "<p><input name='showwind' class='w3-check w3-margin-top' type='checkbox' %WIND_CHECKED%> Display Wind</p>"
@@ -137,28 +132,14 @@ static const char CHANGE_FORM2[] PROGMEM = "<p><input name='isPM' class='w3-chec
                       "<p>Display Brightness <input class='w3-border w3-margin-bottom' name='ledintensity' type='number' min='0' max='15' value='%INTENSITYOPTIONS%'></p>"
                       "<p>Display Scroll Speed <select class='w3-option w3-padding' name='scrollspeed'>%SCROLLOPTIONS%</select></p>"
                       "<p>Minutes Between Refresh Data <select class='w3-option w3-padding' name='refresh'>%OPTIONS%</select></p>"
-                      "<p>Minutes Between Scrolling Data <input class='w3-border w3-margin-bottom' name='refreshDisplay' type='number' min='1' max='10' value='%REFRESH_DISPLAY%'></p>";
+                      "<p>Minutes Between Scrolling Data <input class='w3-border w3-margin-bottom' name='refreshDisplay' type='number' min='1' max='10' value='%REFRESH_DISPLAY%'></p>"
+                      "<p>Theme Color <select class='w3-option w3-padding' name='theme'>%THEME_OPTIONS%</select></p>";
 
 static const char CHANGE_FORM3[] PROGMEM = "<hr><p><input name='isBasicAuth' class='w3-check w3-margin-top' type='checkbox' %IS_BASICAUTH_CHECKED%> Use Security Credentials for Configuration Changes</p>"
                       "<p><label>Marquee User ID (for this web interface)</label><input class='w3-input w3-border w3-margin-bottom' type='text' name='userid' value='%USERID%' maxlength='20'></p>"
                       "<p><label>Marquee Password </label><input class='w3-input w3-border w3-margin-bottom' type='password' name='stationpassword' value='%STATIONPASSWORD%'></p>"
                       "<p><button class='w3-button w3-block w3-green w3-section w3-padding' type='submit'>Save</button></p></form>"
                       "<script>function isNumberKey(e){var h=e.which?e.which:event.keyCode;return!(h>31&&(h<48||h>57))}</script>";
-
-static const char BITCOIN_FORM[] PROGMEM = "<form class='w3-container' action='/savebitcoin' method='get'><h2>Bitcoin Configuration:</h2>"
-                        "<p>Select Bitcoin Currency <select class='w3-option w3-padding' name='bitcoincurrency'>%BITCOINOPTIONS%</select></p>"
-                        "<button class='w3-button w3-block w3-grey w3-section w3-padding' type='submit'>Save</button></form>";
-
-static const char CURRENCY_OPTIONS[] PROGMEM = "<option value='NONE'>NONE</option>"
-                          "<option value='USD'>United States Dollar</option>"
-                          "<option value='AUD'>Australian Dollar</option>"
-                          "<option value='BRL'>Brazilian Real</option>"
-                          "<option value='BTC'>Bitcoin</option>"
-                          "<option value='CAD'>Canadian Dollar</option>"
-                          "<option value='CNY'>Chinese Yuan</option>"
-                          "<option value='EUR'>Euro</option>"
-                          "<option value='GBP'>British Pound Sterling</option>"
-                          "<option value='XAU'>Gold (troy ounce)</option>";
 
 static const char WIDECLOCK_FORM[] PROGMEM = "<form class='w3-container' action='/savewideclock' method='get'><h2>Wide Clock Configuration:</h2>"
                           "<p>Wide Clock Display Format <select class='w3-option w3-padding' name='wideclockformat'>%WIDECLOCKOPTIONS%</select></p>"
@@ -167,15 +148,17 @@ static const char WIDECLOCK_FORM[] PROGMEM = "<form class='w3-container' action=
 static const char PIHOLE_FORM[] PROGMEM = "<form class='w3-container' action='/savepihole' method='get'><h2>Pi-hole Configuration:</h2>"
                         "<p><input name='displaypihole' class='w3-check w3-margin-top' type='checkbox' %PIHOLECHECKED%> Show Pi-hole Statistics</p>"
                         "<label>Pi-hole Address (do not include http://)</label><input class='w3-input w3-border w3-margin-bottom' type='text' name='piholeAddress' id='piholeAddress' value='%PIHOLEADDRESS%' maxlength='60'>"
-                        "<label>Pi-hole Port</label><input class='w3-input w3-border w3-margin-bottom' type='text' name='piholePort' id= 'piholePort' value='%PIHOLEPORT%' maxlength='5'  onkeypress='return isNumberKey(event)'>"
+                        "<label>Pi-hole Port</label><input class='w3-input w3-border w3-margin-bottom' type='text' name='piholePort' id='piholePort' value='%PIHOLEPORT%' maxlength='5'  onkeypress='return isNumberKey(event)'>"
+                        "<label>Pi-hole API Token (from Pi-hole &rarr; Settings &rarr; API/Web interface)</label>"
+                        "<input class='w3-input w3-border w3-margin-bottom' type='text' name='piApiToken' id='piApiToken' value='%PIAPITOKEN%' maxlength='65'>"
                         "<input type='button' value='Test Connection and JSON Response' onclick='testPiHole()'><p id='PiHoleTest'></p>"
                         "<button class='w3-button w3-block w3-green w3-section w3-padding' type='submit'>Save</button></form>"
                         "<script>function isNumberKey(e){var h=e.which?e.which:event.keyCode;return!(h>31&&(h<48||h>57))}</script>";
 
 static const char PIHOLE_TEST[] PROGMEM = "<script>function testPiHole(){var e=document.getElementById(\"PiHoleTest\"),t=document.getElementById(\"piholeAddress\").value,"
-                       "n=document.getElementById(\"piholePort\").value;"
+                       "n=document.getElementById(\"piholePort\").value,api=document.getElementById(\"piApiToken\").value;;"
                        "if(e.innerHTML=\"\",\"\"==t||\"\"==n)return e.innerHTML=\"* Address and Port are required\","
-                       "void(e.style.background=\"\");var r=\"http://\"+t+\":\"+n;r+=\"/admin/api.php?summary\",window.open(r,\"_blank\").focus()}</script>";
+                       "void(e.style.background=\"\");var r=\"http://\"+t+\":\"+n;r+=\"/admin/api.php?summary=3&auth=\"+api,window.open(r,\"_blank\").focus()}</script>";
 
 static const char NEWS_FORM1[] PROGMEM =   "<form class='w3-container' action='/savenews' method='get'><h2>News Configuration:</h2>"
                         "<p><input name='displaynews' class='w3-check w3-margin-top' type='checkbox' %NEWSCHECKED%> Display News Headlines</p>"
@@ -199,6 +182,29 @@ static const char OCTO_FORM[] PROGMEM = "<form class='w3-container' action='/sav
                         "<button class='w3-button w3-block w3-green w3-section w3-padding' type='submit'>Save</button></form>"
                         "<script>function isNumberKey(e){var h=e.which?e.which:event.keyCode;return!(h>31&&(h<48||h>57))}</script>";
 
+static const char COLOR_THEMES[] PROGMEM = "<option>red</option>"
+                      "<option>pink</option>"
+                      "<option>purple</option>"
+                      "<option>deep-purple</option>"
+                      "<option>indigo</option>"
+                      "<option>blue</option>"
+                      "<option>light-blue</option>"
+                      "<option>cyan</option>"
+                      "<option>teal</option>"
+                      "<option>green</option>"
+                      "<option>light-green</option>"
+                      "<option>lime</option>"
+                      "<option>khaki</option>"
+                      "<option>yellow</option>"
+                      "<option>amber</option>"
+                      "<option>orange</option>"
+                      "<option>deep-orange</option>"
+                      "<option>blue-grey</option>"
+                      "<option>brown</option>"
+                      "<option>grey</option>"
+                      "<option>dark-grey</option>"
+                      "<option>black</option>"
+                      "<option>w3schools</option>";
 
 
 const int TIMEOUT = 500; // 500 = 1/2 second
@@ -309,16 +315,13 @@ void setup() {
     server.on("/", displayWeatherData);
     server.on("/pull", handlePull);
     server.on("/locations", handleLocations);
-    server.on("/savebitcoin", handleSaveBitcoin);
     server.on("/savewideclock", handleSaveWideClock);
     server.on("/savenews", handleSaveNews);
     server.on("/saveoctoprint", handleSaveOctoprint);
     server.on("/savepihole", handleSavePihole);
     server.on("/systemreset", handleSystemReset);
     server.on("/forgetwifi", handleForgetWifi);
-    server.on("/restart", restartEsp);
     server.on("/configure", handleConfigure);
-    server.on("/configurebitcoin", handleBitcoinConfigure);
     server.on("/configurewideclock", handleWideClockConfigure);
     server.on("/configurenews", handleNewsConfigure);
     server.on("/configureoctoprint", handleOctoprintConfigure);
@@ -425,12 +428,9 @@ void loop() {
         msg += "  " + printerClient.getFileName() + " ";
         msg += "(" + printerClient.getProgressCompletion() + "%)  ";
       }
-      if (BitcoinCurrencyCode != "NONE" && BitcoinCurrencyCode != "") {
-        msg += "  Bitcoin: " + bitcoinClient.getRate() + " " + bitcoinClient.getCode() + " ";
-      }
       if (USE_PIHOLE) {
-        piholeClient.getPiHoleData(PiHoleServer, PiHolePort);
-        piholeClient.getGraphData(PiHoleServer, PiHolePort);
+        piholeClient.getPiHoleData(PiHoleServer, PiHolePort, PiHoleApiKey);
+        piholeClient.getGraphData(PiHoleServer, PiHolePort, PiHoleApiKey);
         if (piholeClient.getPiHoleStatus() != "") {
           msg += "    Pi-hole (" + piholeClient.getPiHoleStatus() + "): " + piholeClient.getAdsPercentageToday() + "% "; 
         }
@@ -447,14 +447,10 @@ void loop() {
     if (Wide_Clock_Style == "1") {
       // On Wide Display -- show the current temperature as well
       String currentTemp = weatherClient.getTempRounded(0);
-      String timeSpacer = "  ";
-      if (currentTemp.length() >= 3) {
-        timeSpacer = " ";
-      }
-      currentTime += timeSpacer + currentTemp + getTempSymbol();
+      currentTime += " " + currentTemp + getTempSymbol();
     }
     if (Wide_Clock_Style == "2") {
-      currentTime += secondsIndicator(false) + TimeDB.zeroPad(second());
+      currentTime = currentTime + secondsIndicator(false) + TimeDB.zeroPad(second());
       matrix.fillScreen(LOW); // show black
     }
     if (Wide_Clock_Style == "3") {
@@ -472,11 +468,19 @@ void loop() {
   }
 }
 
+String zeroPad(int value) {
+  String rtnValue = String(value);
+  if (value < 10) {
+    rtnValue = "0" + rtnValue;
+  }
+  return rtnValue;
+}
+
 String hourMinutes(boolean isRefresh) {
   if (IS_24HOUR) {
-    return hour() + secondsIndicator(isRefresh) + TimeDB.zeroPad(minute());
+    return String(hour()) + secondsIndicator(isRefresh) + TimeDB.zeroPad(minute());
   } else {
-    return hourFormat12() + secondsIndicator(isRefresh) + TimeDB.zeroPad(minute());
+    return String(hourFormat12()) + secondsIndicator(isRefresh) + TimeDB.zeroPad(minute());
   }
 }
 
@@ -498,16 +502,6 @@ boolean athentication() {
 void handlePull() {
   getWeatherData(); // this will force a data pull for new weather
   displayWeatherData();
-}
-
-void handleSaveBitcoin() {
-  if (!athentication()) {
-    return server.requestAuthentication();
-  }
-  BitcoinCurrencyCode = server.arg("bitcoincurrency");
-  writeCityIds();
-  bitcoinClient.updateBitcoinData(BitcoinCurrencyCode);  // does nothing if BitCoinCurrencyCode is "NONE" or empty
-  redirectHome();
 }
 
 void handleSaveWideClock() {
@@ -561,10 +555,12 @@ void handleSavePihole() {
   USE_PIHOLE = server.hasArg("displaypihole");
   PiHoleServer = server.arg("piholeAddress");
   PiHolePort = server.arg("piholePort").toInt();
+  PiHoleApiKey = server.arg("piApiToken");
+  Serial.println("PiHoleApiKey from save: " + PiHoleApiKey);
   writeCityIds();
   if (USE_PIHOLE) {
-    piholeClient.getPiHoleData(PiHoleServer, PiHolePort);
-    piholeClient.getGraphData(PiHoleServer, PiHolePort);
+    piholeClient.getPiHoleData(PiHoleServer, PiHolePort, PiHoleApiKey);
+    piholeClient.getGraphData(PiHoleServer, PiHolePort, PiHoleApiKey);
   }
   redirectHome();
 }
@@ -592,6 +588,7 @@ void handleLocations() {
   timeDisplayTurnsOff = decodeHtmlString(server.arg("endTime"));
   displayIntensity = server.arg("ledintensity").toInt();
   minutesBetweenDataRefresh = server.arg("refresh").toInt();
+  themeColor = server.arg("theme");
   minutesBetweenScrolling = server.arg("refreshDisplay").toInt();
   displayScrollSpeed = server.arg("scrollspeed").toInt();
   IS_BASIC_AUTH = server.hasArg("isBasicAuth");
@@ -627,39 +624,6 @@ void handleForgetWifi() {
   WiFiManager wifiManager;
   wifiManager.resetSettings();
   ESP.restart();
-}
-
-void restartEsp() {
-  redirectHome();
-  ESP.restart();
-}
-
-void handleBitcoinConfigure() {
-  if (!athentication()) {
-    return server.requestAuthentication();
-  }
-  digitalWrite(externalLight, LOW);
-  String html = "";
-
-  server.sendHeader("Cache-Control", "no-cache, no-store");
-  server.sendHeader("Pragma", "no-cache");
-  server.sendHeader("Expires", "-1");
-  server.setContentLength(CONTENT_LENGTH_UNKNOWN);
-  server.send(200, "text/html", "");
-
-  sendHeader();
-
-  String form = FPSTR(BITCOIN_FORM);
-  String bitcoinOptions = FPSTR(CURRENCY_OPTIONS);
-  bitcoinOptions.replace(BitcoinCurrencyCode + "'", BitcoinCurrencyCode + "' selected");
-  form.replace("%BITCOINOPTIONS%", bitcoinOptions);
-  server.sendContent(form); //Send another Chunk of form
-
-  sendFooter();
-
-  server.sendContent("");
-  server.client().stop();
-  digitalWrite(externalLight, HIGH);
 }
 
 void handleWideClockConfigure() {
@@ -786,6 +750,8 @@ void handlePiholeConfigure() {
   form.replace("%PIHOLECHECKED%", isPiholeDisplayedChecked);
   form.replace("%PIHOLEADDRESS%", PiHoleServer);
   form.replace("%PIHOLEPORT%", String(PiHolePort));
+  form.replace("%PIAPITOKEN%", PiHoleApiKey);
+
 
   server.sendContent(form);
   form = "";
@@ -897,6 +863,9 @@ void handleConfigure() {
   options.replace(">" + minutes + "<", " selected>" + minutes + "<");
   form.replace("%OPTIONS%", options);
   form.replace("%REFRESH_DISPLAY%", String(minutesBetweenScrolling));
+  String themeOptions = FPSTR(COLOR_THEMES);
+  themeOptions.replace(">" + String(themeColor) + "<", " selected>" + String(themeColor) + "<");
+  form.replace("%THEME_OPTIONS%", themeOptions);
 
   server.sendContent(form); //Send another chunk of the form
 
@@ -984,10 +953,6 @@ void getWeatherData() //client function to send/receive GET request data.
     newsClient.updateNews();
   }
 
-  if (displayOn) {
-    bitcoinClient.updateBitcoinData(BitcoinCurrencyCode);  // does nothing if BitCoinCurrencyCode is "NONE" or empty
-  }
-
   Serial.println("Version: " + String(VERSION));
   Serial.println();
   digitalWrite(externalLight, HIGH);
@@ -1027,7 +992,7 @@ void sendHeader() {
   html += "<meta http-equiv='Content-Type' content='text/html; charset=UTF-8' />";
   html += "<meta name='viewport' content='width=device-width, initial-scale=1'>";
   html += "<link rel='stylesheet' href='https://www.w3schools.com/w3css/4/w3.css'>";
-  html += "<link rel='stylesheet' href='https://www.w3schools.com/lib/w3-theme-blue-grey.css'>";
+  html += "<link rel='stylesheet' href='https://www.w3schools.com/lib/w3-theme-" + themeColor + ".css'>";
   html += "<link rel='stylesheet' href='https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.8.1/css/all.min.css'>";
   html += "</head><body>";
   server.sendContent(html);
@@ -1121,8 +1086,8 @@ void displayWeatherData() {
     html += "</div>";
     html += "<div class='w3-cell w3-container' style='width:100%'><p>";
     html += weatherClient.getCondition(0) + " (" + weatherClient.getDescription(0) + ")<br>";
-    html += temperature + " " + getTempSymbol() + "<br>";
-    html += weatherClient.getHigh(0) + "/" + weatherClient.getLow(0) + " " + getTempSymbol() + "<br>";
+    html += temperature + " " + getTempSymbol(true) + "<br>";
+    html += weatherClient.getHigh(0) + "/" + weatherClient.getLow(0) + " " + getTempSymbol(true) + "<br>";
     html += time + "<br>";
     html += "<a href='https://www.google.com/maps/@" + weatherClient.getLat(0) + "," + weatherClient.getLon(0) + ",10000m/data=!3m1!1e3' target='_BLANK'><i class='fas fa-map-marker' style='color:red'></i> Map It!</a><br>";
     html += "</p></div></div><hr>";
@@ -1134,9 +1099,22 @@ void displayWeatherData() {
 
 
   if (OCTOPRINT_ENABLED) {
-    html = "<div class='w3-cell-row'>OctoPrint Status: ";
+    html = "<div class='w3-cell-row'><b>OctoPrint Status:</b> ";
     if (printerClient.isPrinting()) {
-      html += printerClient.getState() + " " + printerClient.getFileName() + " (" + printerClient.getProgressCompletion() + "%)";
+      int val = printerClient.getProgressPrintTimeLeft().toInt();
+      int hours = numberOfHours(val);
+      int minutes = numberOfMinutes(val);
+      int seconds = numberOfSeconds(val);
+      html += "Online and Printing</br>Est. Print Time Left: " + zeroPad(hours) + ":" + zeroPad(minutes) + ":" + zeroPad(seconds) + "<br>";
+    
+      val = printerClient.getProgressPrintTime().toInt();
+      hours = numberOfHours(val);
+      minutes = numberOfMinutes(val);
+      seconds = numberOfSeconds(val);
+      html += "Printing Time: " + zeroPad(hours) + ":" + zeroPad(minutes) + ":" + zeroPad(seconds) + "<br>";
+      html += printerClient.getState() + " " + printerClient.getFileName() + "</br>";
+      html += "<style>#myProgress {width: 100%;background-color: #ddd;}#myBar {width: " + printerClient.getProgressCompletion() + "%;height: 30px;background-color: #4CAF50;}</style>";
+      html += "<div id=\"myProgress\"><div id=\"myBar\" class=\"w3-medium w3-center\">" + printerClient.getProgressCompletion() + "%</div></div>";
     } else if (printerClient.isOperational()) {
       html += printerClient.getState();
     } else if (printerClient.getError() != "") {
@@ -1145,12 +1123,6 @@ void displayWeatherData() {
       html += "Not Connected";
     }
     html += "</div><br><hr>";
-    server.sendContent(String(html));
-    html = "";
-  }
-
-  if (BitcoinCurrencyCode != "NONE" && BitcoinCurrencyCode != "") {
-    html = "<div class='w3-cell-row'>Bitcoin value: " + bitcoinClient.getRate() + " " + bitcoinClient.getCode() + "</div><br><hr>";
     server.sendContent(String(html));
     html = "";
   }
@@ -1220,12 +1192,22 @@ void flashLED(int number, int delayTime) {
 }
 
 String getTempSymbol() {
+  return getTempSymbol(false);
+}
+
+String getTempSymbol(bool forWeb) {
   String rtnValue = "F";
   if (IS_METRIC) {
     rtnValue = "C";
   }
+  if (forWeb) {
+    rtnValue = "°" + rtnValue;
+  } else {
+    rtnValue = char(247) + rtnValue;
+  }
   return rtnValue;
 }
+
 
 String getSpeedSymbol() {
   String rtnValue = "mph";
@@ -1362,7 +1344,6 @@ String writeCityIds() {
     f.println("www_username=" + String(www_username));
     f.println("www_password=" + String(www_password));
     f.println("IS_BASIC_AUTH=" + String(IS_BASIC_AUTH));
-    f.println("BitcoinCurrencyCode=" + BitcoinCurrencyCode);
     f.println("SHOW_CITY=" + String(SHOW_CITY));
     f.println("SHOW_CONDITION=" + String(SHOW_CONDITION));
     f.println("SHOW_HUMIDITY=" + String(SHOW_HUMIDITY));
@@ -1373,6 +1354,8 @@ String writeCityIds() {
     f.println("USE_PIHOLE=" + String(USE_PIHOLE));
     f.println("PiHoleServer=" + PiHoleServer);
     f.println("PiHolePort=" + String(PiHolePort));
+    f.println("PiHoleApiKey=" + String(PiHoleApiKey));
+    f.println("themeColor=" + themeColor);
   }
   f.close();
   readCityIds();
@@ -1523,11 +1506,6 @@ void readCityIds() {
       IS_BASIC_AUTH = line.substring(line.lastIndexOf("IS_BASIC_AUTH=") + 14).toInt();
       Serial.println("IS_BASIC_AUTH=" + String(IS_BASIC_AUTH));
     }
-    if (line.indexOf("BitcoinCurrencyCode=") >= 0) {
-      BitcoinCurrencyCode = line.substring(line.lastIndexOf("BitcoinCurrencyCode=") + 20);
-      BitcoinCurrencyCode.trim();
-      Serial.println("BitcoinCurrencyCode=" + BitcoinCurrencyCode);
-    }
     if (line.indexOf("SHOW_CITY=") >= 0) {
       SHOW_CITY = line.substring(line.lastIndexOf("SHOW_CITY=") + 10).toInt();
       Serial.println("SHOW_CITY=" + String(SHOW_CITY));
@@ -1548,12 +1526,10 @@ void readCityIds() {
       SHOW_PRESSURE = line.substring(line.lastIndexOf("SHOW_PRESSURE=") + 14).toInt();
       Serial.println("SHOW_PRESSURE=" + String(SHOW_PRESSURE));
     }
-
     if (line.indexOf("SHOW_HIGHLOW=") >= 0) {
       SHOW_HIGHLOW = line.substring(line.lastIndexOf("SHOW_HIGHLOW=") + 13).toInt();
       Serial.println("SHOW_HIGHLOW=" + String(SHOW_HIGHLOW));
     }
-    
     if (line.indexOf("SHOW_DATE=") >= 0) {
       SHOW_DATE = line.substring(line.lastIndexOf("SHOW_DATE=") + 10).toInt();
       Serial.println("SHOW_DATE=" + String(SHOW_DATE));
@@ -1565,11 +1541,21 @@ void readCityIds() {
     if (line.indexOf("PiHoleServer=") >= 0) {
       PiHoleServer = line.substring(line.lastIndexOf("PiHoleServer=") + 13);
       PiHoleServer.trim();
-      Serial.println("PiHoleServer=" + PiHoleServer);
+      Serial.println("PiHoleServer=" + String(PiHoleServer));
     }
     if (line.indexOf("PiHolePort=") >= 0) {
       PiHolePort = line.substring(line.lastIndexOf("PiHolePort=") + 11).toInt();
       Serial.println("PiHolePort=" + String(PiHolePort));
+    }
+    if (line.indexOf("PiHoleApiKey=") >= 0) {
+      PiHoleApiKey = line.substring(line.lastIndexOf("PiHoleApiKey=") + 13);
+      PiHoleApiKey.trim();
+      Serial.println("PiHoleApiKey=" + String(PiHoleApiKey));
+    }
+    if (line.indexOf("themeColor=") >= 0) {
+      themeColor = line.substring(line.lastIndexOf("themeColor=") + 11);
+      themeColor.trim();
+      Serial.println("themeColor=" + themeColor);
     }
   }
   fr.close();

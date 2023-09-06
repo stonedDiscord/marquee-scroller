@@ -50,7 +50,6 @@ SOFTWARE.
 #include "TimeDB.h"
 #include "NewsApiClient.h" 
 #include "OctoPrintClient.h"
-#include "BitcoinApiClient.h"
 #include "PiHoleClient.h"
 
 //******************************
@@ -107,13 +106,11 @@ int OctoPrintPort = 80;       // the port you are running your OctoPrint server 
 String OctoAuthUser = "";     // only used if you have haproxy or basic athentintication turned on (not default)
 String OctoAuthPass = "";     // only used with haproxy or basic auth (only needed if you must authenticate)
 
-// Bitcoin Client - NONE or empty is off
-String BitcoinCurrencyCode = "NONE";  // Change to USD, GBD, EUR, or NONE -- this can be managed in the Web Interface
-
 // Pi-hole Client -- monitor basic stats from your Pi-hole server (see http://pi-hole.net)
 boolean USE_PIHOLE = false;   // Set true to display your Pi-hole details
 String PiHoleServer = "";     // IP or Address only (DO NOT include http://)
 int PiHolePort = 80;          // Port of your Pi-hole address (default 80)
+String PiHoleApiKey = "";   // Optional -- only needed to see top blocked clients
 
 boolean ENABLE_OTA = true;    // this will allow you to load firmware to the device over WiFi (see OTA for ESP8266)
 String OTA_Password = "";     // Set an OTA password here -- leave blank if you don't want to be prompted for password
@@ -121,3 +118,5 @@ String OTA_Password = "";     // Set an OTA password here -- leave blank if you 
 //******************************
 // End Settings
 //******************************
+//blue-grey
+String themeColor = "blue-grey"; // this can be changed later in the web interface.
